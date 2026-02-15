@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Tool - 二维码工具</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --border: #cbd5e1;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .card {
+            background: white;
+            width: 100%;
+            max-width: 480px;
+            padding: 30px;
+            border-radius: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            box-sizing: border-box;
+            height: auto;
+        }
+
+        h2 { 
+            text-align: center; 
+            margin-top: 0; 
+            margin-bottom: 25px;
+            color: var(--text-main); 
+            font-size: 26px;
+            font-weight: 700;
+        }
+
+        .tabs { display: flex; background: #f1f5f9; padding: 5px; border-radius: 12px; margin-bottom: 25px; }
+        .tab { 
+            flex: 1; text-align: center; padding: 10px; cursor: pointer; 
+            font-size: 15px; font-weight: 600; color: var(--text-sub); border-radius: 8px; transition: 0.2s;
+        }
+        .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        .panel { display: none; }
+        .panel.active { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(5px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+
+        /* --- 内容区域 --- */
+        textarea {
+            width: 100%; padding: 15px; border: 2px solid #e2e8f0; border-radius: 12px;
+            margin-bottom: 15px; box-sizing: border-box; resize: none; font-family: inherit; font-size: 14px;
+            background: #f8fafc; transition: 0.2s; color: #334155;
+        }
+        textarea:focus { border-color: var(--primary); background: white; outline: none; }
+        
+        button {
+            width: 100%; padding: 14px; background: var(--primary); color: white;
+            border: none; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+        }
+        button:hover { opacity: 0.9; transform: translateY(-1px); background-color: var(--primary-hover); }
+        button:active { transform: scale(0.98); }
+
+        /* 统一容器 */
+        #qr-container { 
+            margin-top: 25px; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            background: white; 
+            padding: 20px; 
+            border-radius: 16px; 
+            border: 1px solid #e2e8f0; 
+            min-height: 200px; 
+            overflow: hidden; /* 防止二维码溢出 */
+        }
+        
+        /* 修复 EasyQRCodeJS 生成的 canvas/img 样式 */
+        #qr-container img, #qr-container canvas {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .upload-box {
+            border: 2px dashed #cbd5e1; 
+            border-radius: 16px; 
+            min-height: 420px; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center; 
+            cursor: pointer; 
+            background: #f8fafc; 
+            position: relative;
+            transition: 0.2s;
+        }
+        .upload-box:hover { border-color: var(--primary); background: #eff6ff; }
+        #file-input { 
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer; 
+        }
+
+        #result-area {
+            margin-top: 20px; padding: 15px; border-radius: 12px; word-break: break-all;
+            display: none; font-size: 14px; line-height: 1.6;
+        }
+        .res-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .res-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        
+        /* 转换结果的高亮样式 */
+        .decoded-highlight {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px dashed #166534;
+            margin-top: 10px;
+            font-weight: bold;
+            color: #15803d;
+        }
+
+        .copy-btn {
+            display: inline-block; margin-top: 10px; padding: 6px 12px; background: white; 
+            border: 1px solid #bbf7d0; color: #166534; border-radius: 6px; 
+            font-size: 12px; cursor: pointer; font-weight: 600;
+        }
+        .copy-btn:hover { background: #f0fdf4; }
+
+        /* Footer */
+        .footer {
+            text-align: center; padding: 24px; margin-top: auto;
+            color: #000000; font-size: 0.85rem; position: relative;
+        }
+        .footer::before {
+            content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 85%; height: 1px;
+            background: linear-gradient(to right, transparent 0%, #cbd5e1 20%, #cbd5e1 80%, transparent 100%);
+        }
+        .footer p { margin: 0; line-height: 1.6; }
+        .footer a {
+            color: inherit; text-decoration: none; position: relative;
+            transition: color 0.2s ease; font-weight: 600;
+        }
+        .footer a::after {
+            content: ''; position: absolute; bottom: -2px; left: 50%; width: 0; height: 1px;
+            background-color: currentColor; transition: all 0.3s ease; transform: translateX(-50%);
+        }
+        .footer a:hover::after { width: 100%; }
+        
+        #process-canvas { display: none; }
+    </style>
+    
+    <script src="https://cdn.jsdelivr.net/npm/easyqrcodejs@4.6.1/dist/easy.qrcode.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+
+<main>
+    <div class="card" id="main-card">
+        <h2>QR Code Tool</h2>
+        
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab(0)">生成 (Generate)</div>
+            <div class="tab" onclick="switchTab(1)">解码 (Decode)</div>
+        </div>
+
+        <div class="panel active" id="p-gen">
+            <textarea id="text" rows="3" placeholder="输入网址或文本..."></textarea>
+            <button onclick="gen()">立即生成</button>
+            <div id="qr-container">
+                <span style="color:#94a3b8; font-size:14px">二维码将显示在这里</span>
+            </div>
+        </div>
+
+        <div class="panel" id="p-scan">
+            <div class="upload-box">
+                <input type="file" id="file-input" accept="image/*" onchange="handleInputChange(this)">
+                <div style="font-size:32px;margin-bottom:10px">📷</div>
+                <div style="color:#64748b; font-weight:500">点击上传 / 拖拽 / Ctrl+V 粘贴</div>
+                <div style="color:#94a3b8; font-size:12px; margin-top:5px">支持高密度复杂二维码</div>
+            </div>
+            <div id="result-area"></div>
+        </div>
+    </div>
+</main>
+
+<footer class="footer">
+    <p>Copyright © 2025 <a href="https://qr.gw124.top" target="_blank">QR.GW124.TOP</a> • Powered by <a href="https://gw124.top/" target="_blank">Wen</a></p>
+</footer>
+
+<canvas id="process-canvas"></canvas>
+
+<script>
+    function switchTab(idx) {
+        const card = document.getElementById('main-card');
+        const panels = document.querySelectorAll('.panel');
+        const tabs = document.querySelectorAll('.tab');
+        card.style.height = card.offsetHeight + 'px';
+        tabs.forEach((t, i) => t.classList.toggle('active', i === idx));
+        requestAnimationFrame(() => {
+            panels.forEach((p, i) => { if(i === idx) p.classList.add('active'); else p.classList.remove('active'); });
+            const newHeight = card.scrollHeight;
+            card.style.height = newHeight + 'px';
+            setTimeout(() => { card.style.height = 'auto'; }, 300);
+        });
+    }
+
+    // --- 核心修复：使用 EasyQRCodeJS 生成 ---
+    let qr = null;
+    function gen() {
+        const text = document.getElementById('text').value.trim();
+        const box = document.getElementById('qr-container');
+        
+        if(!text) return alert('请输入内容');
+        
+        // 清空容器
+        box.innerHTML = ''; 
+        
+        // 配置参数
+        const options = {
+            text: text,
+            width: 200,
+            height: 200,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            // 关键修改：将 CorrectLevel 从 H (High) 改为 M (Medium)
+            // 这样可以容纳更多字符，避免长链接失败
+            correctLevel: QRCode.CorrectLevel.M, 
+            
+            // 启用 UTF-8 支持，防止中文乱码或失败
+            quietZone: 10,
+            quietZoneColor: '#ffffff'
+        };
+
+        try {
+            qr = new QRCode(box, options);
+        } catch (e) {
+            alert("生成失败，内容可能过长。");
+            console.error(e);
+        }
+    }
+
+    document.addEventListener('paste', function(event) {
+        const items = event.clipboardData && event.clipboardData.items;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                switchTab(1); scanFile(file); break;
+            }
+        }
+    });
+
+    function handleInputChange(input) {
+        const file = input.files[0];
+        if (file) scanFile(file);
+        input.value = '';
+    }
+
+    // --- 扫描 + 智能解码 (保持不变) ---
+    function scanFile(file) {
+        if (!file) return;
+        const resBox = document.getElementById('result-area');
+        resBox.style.display = 'block';
+        resBox.className = '';
+        resBox.style.background = '#f1f5f9';
+        resBox.innerHTML = '🔄 智能分析中...';
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.getElementById('process-canvas');
+                const ctx = canvas.getContext('2d');
+                const padding = Math.max(img.width, img.height) * 0.15; 
+                canvas.width = img.width + padding * 2;
+                canvas.height = img.height + padding * 2;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, padding, padding);
+
+                canvas.toBlob(function(blob) {
+                    const processedFile = new File([blob], "processed.png", { type: "image/png" });
+                    const html5QrCode = new Html5Qrcode("reader-hidden");
+                    
+                    html5QrCode.scanFile(processedFile, true)
+                    .then(decodedText => { processResult(decodedText); })
+                    .catch(err => {
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height);
+                        if (code) { processResult(code.data); }
+                        else {
+                            html5QrCode.scanFile(file, true)
+                            .then(decodedText => { processResult(decodedText); })
+                            .catch(() => {
+                                resBox.className = 'res-error';
+                                resBox.innerHTML = '❌ 识别失败，请尝试裁剪图片。';
+                            });
+                        }
+                    });
+                }, 'image/png');
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function processResult(text) {
+        const resBox = document.getElementById('result-area');
+        resBox.className = 'res-success';
+        
+        let finalText = text;
+        let isConverted = false;
+
+        const socksMatch = text.match(/^socks:\/\/([a-zA-Z0-9%]+=*)@(.+)/);
+        if (socksMatch) {
+            try {
+                let b64Part = decodeURIComponent(socksMatch[1]);
+                let decodedAuth = atob(b64Part);
+                let hostPart = socksMatch[2];
+                finalText = `socks5://${decodedAuth}@${hostPart}`;
+                isConverted = true;
+            } catch (e) {
+                console.error("Smart decode failed", e);
+            }
+        }
+
+        let displayHtml = `<div style="word-break: break-all; color:#666; font-size:12px; margin-bottom:5px;">原始数据: ${text}</div>`;
+        
+        if (isConverted) {
+            displayHtml += `
+                <div class="decoded-highlight">
+                    <div style="font-size:12px;color:#166534;margin-bottom:4px;">✨ 智能转换成功 (Socks5 明文):</div>
+                    <div style="word-break: break-all;">${finalText}</div>
+                </div>
+            `;
+        } else {
+             displayHtml += `<div style="word-break: break-all; font-weight:bold;">${text}</div>`;
+        }
+
+        displayHtml += `<button class="copy-btn" onclick="copyText('${finalText.replace(/'/g, "\\'")}')">复制最终结果</button>`;
+        
+        resBox.innerHTML = `<strong>✅ 识别成功：</strong><br>${displayHtml}`;
+    }
+
+    function copyText(txt) {
+        navigator.clipboard.writeText(txt).then(() => { alert('已复制到剪切板'); });
+    }
+</script>
+
+<div id="reader-hidden" style="display:none;"></div>
+
+</body>
+</html>
